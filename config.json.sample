@@ -1,0 +1,50 @@
+{
+	"debug":
+	{
+		"socket"   : false,
+		"websocket": false,
+		"twitch"   : false,
+		"discord"  : false
+	},
+	"db":
+	{
+		"host": "localhost",
+		"user": "",
+		"pass": "",
+		"name": "stream"
+	},
+	"twitch":
+	{
+		"server"  : "irc.chat.twitch.tv",
+		"username": "TwitchLoginAccountName",
+		"password": "oauth:TwitchLoginOAuth",
+		"channel" : "TwitchChannel",
+		"clientid": "TwitchAppClientID"
+	},
+	"discord":
+	{
+		"webhook":
+		{
+			"url"  : "https://discordapp.com/api/webhooks/%s/%s",
+			"id"   : WebHookID,
+			"token": "WebHookToken"
+		},
+		"token"  : "DiscordBotToken",
+		"guild"  : GuildID,
+		"channel": ChannelID,
+		"ignore" :
+		{
+			"users":
+			[
+			],
+			"webhooks":
+			[
+			]
+		},
+		"roles":
+		{
+			"vip"   : roleID,
+			"twitch": roleID
+		}
+	}
+}
