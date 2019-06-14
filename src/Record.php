@@ -61,6 +61,22 @@ class Record
       return;
     }
 
+    $type = $this->dsClass::getColumnType($column);
+    if (!is_null($value) || (!($type & DataSource::FLAG_MOD_NULLABLE) && is_null($value)))
+      switch($this->dsClass::getColumnType($column) & DataSource::FLAG_TYPE_MASK)
+      {
+        case DataSource::FLAG_TYPE_INT :
+          if (!($type & DataSource::FLAG_MOD_BIG))
+            $value = (int)$value;
+          break;
+
+        case DataSource::FLAG_TYPE_STR : $value = (string)$value; break;
+        case DataSource::FLAG_TYPE_DEC : $value = (float )$value; break;
+        case DataSource::FLAG_TYPE_TXT : $value = (string)$value; break;
+        case DataSource::FLAG_TYPE_BOOL: $value = (bool  )$value; break;
+        case DataSource::FLAG_TYPE_BIN : $value = (string)$value; break;
+      }
+
     $this->row[$column] = $value;
   }
 
@@ -83,6 +99,31 @@ class Record
 
       if ($update)
         $this->modified = true;
+
+      return $value;
+    }
+
+    // could be a calc column, ignore errors
+    try
+    {
+      $type = $this->dsClass::getColumnType($column);
+      if (!is_null($value) || (!($type & DataSource::FLAG_MOD_NULLABLE) && is_null($value)))
+        switch($this->dsClass::getColumnType($column) & DataSource::FLAG_TYPE_MASK)
+        {
+          case DataSource::FLAG_TYPE_INT :
+            if (!($type & DataSource::FLAG_MOD_BIG))
+              $value = (int)$value;
+            break;
+
+          case DataSource::FLAG_TYPE_STR : $value = (string)$value; break;
+          case DataSource::FLAG_TYPE_DEC : $value = (float )$value; break;
+          case DataSource::FLAG_TYPE_TXT : $value = (string)$value; break;
+          case DataSource::FLAG_TYPE_BOOL: $value = (bool  )$value; break;
+          case DataSource::FLAG_TYPE_BIN : $value = (string)$value; break;
+        }
+    }
+    catch(Exception $e)
+    {
     }
 
     return $value;

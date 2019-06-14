@@ -65,5 +65,26 @@ class TwitchAPI
 
     return json_decode(curl_exec($this->ch));
   }
+
+  public function getUserInfo(array $users)
+  {
+    $result = [];
+    $offset = 0;
+    while(count($users) - $offset)
+    {
+      $slice   = array_slice($users, $offset, 100);
+      $offset += count($slice);
+      $slice   = $this->curlGet('users?login=' . urlencode(implode(',', $slice)));
+      foreach($slice->users as $user)
+        $result[$user->name] =
+        [
+          'id'           => $user->_id,
+          'type'         => $user->type,
+          'display_name' => $user->display_name ?? $user->name
+        ];
+    }
+
+    return $result;
+  }
 }
 ?>

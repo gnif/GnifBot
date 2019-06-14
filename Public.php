@@ -91,12 +91,12 @@ Core::addPublicCommand("stats", false,
       ->addFilter('message_count', '>=', $from->message_count);
 
     $rank = $ds->fetch()->rank;
-    if     ($rank > 3) $rank .= "th most";
-    elseif ($rank > 2) $rank .= "rd most";
-    elseif ($rank > 1) $rank .= "nd most";
-    else               $rank  = "most";
+    if     ($rank > 3) $rank .= "th most ";
+    elseif ($rank > 2) $rank .= "rd most ";
+    elseif ($rank > 1) $rank .= "nd most ";
+    else               $rank  = "";
 
-    $msg  = "You were first seen at " . gmdate('Y-m-d H:i:s', $from->first_seen) . " GMT and since then sent a total of " . number_format($from->message_count) . " chat messages making you the $rank chattiest person here.";
+    $msg  = "You were first seen at " . gmdate('Y-m-d H:i:s', $from->first_seen) . " GMT and since then sent a total of " . number_format($from->message_count) . " chat messages making you the ${rank}chattiest person here.";
     $source->sendPrivMessage($from, $msg);
   }
 );

@@ -40,7 +40,6 @@ class Core
     Log::setDebug($config->debug);
 
     self::$twitch_api = new TwitchAPI($config->twitch->clientid);
-    self::initPeople();
 
     $regex  = [];
     $values = [];
@@ -65,6 +64,7 @@ class Core
   {
     /* set the initial user state */
     $chatters = self::$twitch_api->getChatters();
+    $getinfo  = [];
     $online   = [];
     foreach($chatters->chatters as $group)
       foreach($group as $user)
@@ -72,11 +72,28 @@ class Core
         if ($user == self::$config->twitch->username)
           continue;
 
-        $person   = self::getPerson('twitch', null, $user);
-        $online[] = $person->id;
-        $person->is_online = true;
+        $person = self::getPerson('twitch', null, $user);
+        if ($person->isNew())
+        {
+          $person->first_seen = time();
+          $getinfo[$user] = $person;
+        }
+
+        $person->is_online  = true;
+        $person->last_seen  = time();
         $person->save();
+        $online[] = $person->id;
       }
+
+    $info = self::$twitch_api->getUserInfo(array_keys($getinfo));
+    foreach($getinfo as $user => $person)
+    {
+      $detail = $info[$user];
+      $person->twitch_id    = $detail['id'];
+      $person->display_name = $detail['display_name'];
+      $person->is_bot       = $detail['type'] != 'user';
+      $person->save();
+    }
 
     $ds = new DS\TPeople();
     $ds
@@ -164,6 +181,8 @@ class Core
   {
     pcntl_async_signals(true);
     pcntl_signal(\SIGINT, [self::class, 'signalHandler']);
+
+    self::initPeople();
 
     self::$sockets['twitch'] = new Twitch(
       self::$config->twitch->server,
@@ -351,12 +370,12 @@ class Core
       $person->display_name  = $name;
       $person->message_count = 0;
       $person->is_admin      = false;
+      $person->is_online     = false;
+      $person->is_bot        = false;
       $person->$field_name   = $source_name;
 
       if (!is_null($source_id))
         $person->$field_id = $source_id;
-
-      $person->save();
     }
     else
     {
@@ -365,8 +384,6 @@ class Core
 
       if ($person->$field_name != $source_name)
         $person->$field_name = $source_name;
-
-      $person->save();
     }
 
     return $person;
@@ -380,16 +397,20 @@ class Core
     if ($person->is_online)
       return;
 
-    Log::Info("Join: %s", $person->display_name);
-    $newUser = false;
-
-    if (is_null($person->first_seen))
+    if ($person->isNew())
     {
-      $person->first_seen = microtime(true);
-      $newUser = true;
+      if ($source == 'twitch')
+      {
+        $info = self::$twitch_api->getUserInfo([$person->twitch_name]);
+        print_r($info);
+        $info = $info[$person->twitch_name];
+        $person->twitch_id    = $info['id'          ];
+        $person->display_name = $info['display_name'];
+        $person->is_bot       = $info['type'] != 'user';
+      }
+      $person->first_seen = time();
+      $person->last_seen  = time();
     }
-
-    $person->last_seen = microtime(true);
 
     // if the person was already online there is nothing more to do
     if ($person->is_online)
@@ -399,10 +420,11 @@ class Core
     }
 
     $person->is_online = true;
-    $person->save();
-
     if ($person->is_bot)
+    {
+      $person->save();
       return;
+    }
 
     foreach(self::$sockets as $dest => $socket)
     {
@@ -412,13 +434,15 @@ class Core
       else
         $name = $person->$field;
 
-      if ($newUser)
+      if ($person->isNew())
         $msg = "Welcome @" . $name;
       else
         $msg = "Welcome back @" . $name;
 
       $socket->sendMessage($msg);
     }
+
+    $person->save();
   }
 
   static public function handlePart(string $source, Record $person)
@@ -426,12 +450,14 @@ class Core
     if ($source != 'discord' && $source != 'twitch')
       throw new Exception('Invalid message source, must be either discord or twitch');
 
+    if (!$person->is_online)
+      return;
+
     Log::Info("Part: %s", $person->display_name);
-    $source = self::$sockets[$source];
 
     $person->is_online = false;
     $person->save();
-
+    var_dump($person->is_bot);
     if ($person->is_bot)
       return;
 
@@ -462,6 +488,8 @@ class Core
 
     if (is_null($person->first_seen))
       $person->first_seen = $ts;
+    $person->last_seen = $ts;
+    $person->save();
 
     if (!$person->is_online)
       self::handleJoin($source, $person);

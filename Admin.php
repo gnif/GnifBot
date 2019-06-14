@@ -143,4 +143,30 @@ Core::addAdminCommand("newsession", false,
     $source->sendPrivMessage($from, "New session has been tagged");
   }
 );
+
+Core::addAdminCommand("bot", false,
+  "Flag a twitch user as a bot",
+  function($cmd, $source, Record $from, array $args) : void
+  {
+    if (count($args) != 1)
+    {
+      $source->sendPrivMessage($from, "Invalid usage, expected:\n`!!bot twitch_name`");
+      return;
+    }
+
+    $ds = new DS\TPeople();
+    $twitch = $ds->addFilter('twitch_name', '=', $args[0])->fetch();
+    if (!$twitch)
+    {
+      $source->sendPrivMessage($from, "Unknown Twitch user");
+      return;
+    }
+
+    $twitch->is_bot = true;
+    $twitch->save();
+
+    $source->sendPrivMessage($from, "Twitch user has been flagged as a bot");
+  }
+);
+
 ?>
