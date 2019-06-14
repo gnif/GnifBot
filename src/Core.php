@@ -40,6 +40,7 @@ class Core
     Log::setDebug($config->debug);
 
     self::$twitch_api = new TwitchAPI($config->twitch->clientid);
+    self::initPeople();
 
     $regex  = [];
     $values = [];
@@ -58,6 +59,29 @@ class Core
     if($num <= 0xFFFF  ) return chr(($num>>12)+224).chr((($num>>6)&63)+128).chr(($num&63)+128);
     if($num <= 0x1FFFFF) return chr(($num>>18)+240).chr((($num>>12)&63)+128).chr((($num>>6)&63)+128).chr(($num&63)+128);
     return '';
+  }
+
+  static private function initPeople()
+  {
+    /* set the initial user state */
+    $chatters = self::$twitch_api->getChatters();
+    $online   = [];
+    foreach($chatters->chatters as $group)
+      foreach($group as $user)
+      {
+        if ($user == self::$config->twitch->username)
+          continue;
+
+        $person   = self::getPerson('twitch', null, $user);
+        $online[] = $person->id;
+        $person->is_online = true;
+        $person->save();
+      }
+
+    $ds = new DS\TPeople();
+    $ds
+      ->addFilter('id', '!=', $online)
+      ->update('is_online'  , false  );
   }
 
   static public function getEmotes()
@@ -278,7 +302,7 @@ class Core
 
   static public function getPerson(
     string $source     , // the source (discord or twitter)
-    int    $source_id  , // the author id
+    ?int   $source_id  , // the author id (null if unknown)
     string $source_name  // the author name
   ): Record
   {
@@ -288,9 +312,13 @@ class Core
     $field_id   = $source . '_id';
     $field_name = $source . '_name';
 
-    // lookup the person
-    $ds     = new DS\TPeople();
-    $person = $ds->addFilter($field_id, '=', $source_id)->fetch();
+    // lookup the person by ID if possible, otherwise the author name
+    $ds = new DS\TPeople();
+    if (!is_null($source_id))
+         $ds->addFilter($field_id  , '=', $source_id  );
+    else $ds->addFilter($field_name, '=', $source_name);
+
+    $person = $ds->fetch();
     if (!$person)
     {
       // not found, create a new record with a unique display name
@@ -323,19 +351,101 @@ class Core
       $person->display_name  = $name;
       $person->message_count = 0;
       $person->is_admin      = false;
-      $person->$field_id     = $source_id;
       $person->$field_name   = $source_name;
+
+      if (!is_null($source_id))
+        $person->$field_id = $source_id;
+
+      $person->save();
     }
     else
     {
+      if (is_null($person->$field_id) && !is_null($source_id))
+        $person->$field_id = $source_id;
+
       if ($person->$field_name != $source_name)
-      {
         $person->$field_name = $source_name;
-        $person->save();
-      }
+
+      $person->save();
     }
 
     return $person;
+  }
+
+  static public function handleJoin(string $source, Record $person)
+  {
+    if ($source != 'discord' && $source != 'twitch')
+      throw new Exception('Invalid message source, must be either discord or twitch');
+
+    if ($person->is_online)
+      return;
+
+    Log::Info("Join: %s", $person->display_name);
+    $newUser = false;
+
+    if (is_null($person->first_seen))
+    {
+      $person->first_seen = microtime(true);
+      $newUser = true;
+    }
+
+    $person->last_seen = microtime(true);
+
+    // if the person was already online there is nothing more to do
+    if ($person->is_online)
+    {
+      $person->save();
+      return;
+    }
+
+    $person->is_online = true;
+    $person->save();
+
+    if ($person->is_bot)
+      return;
+
+    foreach(self::$sockets as $dest => $socket)
+    {
+      $field = $dest . '_name';
+      if (is_null($person->$field))
+        $name = $person->display_name;
+      else
+        $name = $person->$field;
+
+      if ($newUser)
+        $msg = "Welcome @" . $name;
+      else
+        $msg = "Welcome back @" . $name;
+
+      $socket->sendMessage($msg);
+    }
+  }
+
+  static public function handlePart(string $source, Record $person)
+  {
+    if ($source != 'discord' && $source != 'twitch')
+      throw new Exception('Invalid message source, must be either discord or twitch');
+
+    Log::Info("Part: %s", $person->display_name);
+    $source = self::$sockets[$source];
+
+    $person->is_online = false;
+    $person->save();
+
+    if ($person->is_bot)
+      return;
+
+    foreach(self::$sockets as $dest => $socket)
+    {
+      $field = $dest . '_name';
+      if (is_null($person->$field))
+        $name = $person->display_name;
+      else
+        $name = $person->$field;
+
+      $msg = "@$name left the channel";
+      $socket->sendMessage($msg);
+    }
   }
 
   static public function handleMessage(
@@ -353,7 +463,8 @@ class Core
     if (is_null($person->first_seen))
       $person->first_seen = $ts;
 
-    $person->last_seen = $ts;
+    if (!$person->is_online)
+      self::handleJoin($source, $person);
 
     $msg = preg_replace(self::$emojiMap[0], self::$emojiMap[1], $msg);
 
@@ -508,14 +619,14 @@ class Core
 
     if (!array_key_exists($cmd, self::$adminCommands))
     {
-      $source->sendMessage($person, "Invalid admin command");
+      $source->sendPrivMessage($person, "Invalid admin command");
       return;
     }
 
     $handler = self::$adminCommands[$cmd];
     if ($handler[0] && !$secure)
     {
-      $source->sendMessage($person, "This command requires a secure channel, use Discord");
+      $source->sendPrivMessage($person, "This command requires a secure channel, use Discord");
       return;
     }
 
@@ -533,14 +644,14 @@ class Core
 
     if (!array_key_exists($cmd, self::$publicCommands))
     {
-      $source->sendMessage($person, "Invalid command");
+      $source->sendPrivMessage($person, "Invalid command");
       return;
     }
 
     $handler = self::$publicCommands[$cmd];
     if ($handler[0] && !$secure)
     {
-      $source->sendMessage($person, "This command requires a secure channel, use Discord");
+      $source->sendPrivMessage($person, "This command requires a secure channel, use Discord");
       return;
     }
 

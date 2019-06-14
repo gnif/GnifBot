@@ -10,6 +10,7 @@ class Record
 {
   protected $dsClass;
   private   $invalid = false;
+  private   $readOnly;
   private   $newRecord;
   private   $row;
   private   $modified;
@@ -33,7 +34,8 @@ class Record
     $this->row     = $row;
 
     $primary = $dsClass::getPrimaryKey();
-    $this->newRecord = is_null($row[$primary]);
+    $this->readOnly  = !array_key_exists($primary, $row);
+    $this->newRecord = $this->readOnly || is_null($row[$primary]);
   }
 
   /**
@@ -41,6 +43,9 @@ class Record
    */
   public function __set(string $column, $value)
   {
+    if ($this->readOnly)
+      throw new Exception('The record is read only');
+
     if (!$this->dsClass::isValidColumn($column))
       throw new Exception('Invalid column \'' . $column . '\'');
 
@@ -136,6 +141,9 @@ class Record
    */
   public function save() : bool
   {
+    if ($this->readOnly)
+      throw new Exception('The record is read only');
+
     if ($this->invalid)
       throw new Exception("Record is invalid");
 
@@ -155,6 +163,9 @@ class Record
    */
   final public function logicalDelete() : void
   {
+    if ($this->readOnly)
+      throw new Exception('The record is read only');
+
     $this->dontDelete = true;
     $this->delete();
     $this->dontDelete = false;
@@ -168,6 +179,9 @@ class Record
    */
   public function delete() : bool
   {
+    if ($this->readOnly)
+      throw new Exception('The record is read only');
+
     if (!$this->dontDelete)
     {
       if (!$this->dsClass::deleteRecord($this))

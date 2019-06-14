@@ -53,5 +53,17 @@ class TwitchAPI
       }
     return $out;
   }
+
+  /* unofficial API call */
+  public function getChatters()
+  {
+    curl_setopt_array($this->ch, [
+      CURLOPT_POST           => false,
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_URL            => "https://tmi.twitch.tv/group/user/gnif2/chatters",
+    ]);
+
+    return json_decode(curl_exec($this->ch));
+  }
 }
 ?>

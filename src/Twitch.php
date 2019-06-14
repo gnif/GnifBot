@@ -13,7 +13,7 @@ class Twitch extends Socket
 
   public function __construct($server, $username, $password, $channel)
   {
-    parent::__construct($server, 6667);
+    parent::__construct($server, 6697, true);
 
     $this->username = $username;
     $this->password = $password;
@@ -33,7 +33,7 @@ class Twitch extends Socket
 
     $this->send("PASS " . $this->password);
     $this->send("NICK " . $this->username);
-    $this->send("CAP REQ :twitch.tv/tags twitch.tv/commands");
+    $this->send("CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership");
     $this->send("JOIN #" . $this->channel);
     return true;
   }
@@ -95,10 +95,28 @@ class Twitch extends Socket
 
       $user = substr($line[0], 1, strpos($line[0], '!') - 1);
 
+      // :wolf907!wolf907@wolf907.tmi.twitch.tv JOIN #gnif2
+
       switch($line[1])
       {
         case 'JOIN':
-          Log::Info("Twitch connected");
+          if ($user == $this->username)
+          {
+            Log::Info("Twitch connected");
+            break;
+          }
+
+          $this->handleJoin($user);
+          break;
+
+        case 'PART':
+          if ($user == $this->username)
+          {
+            Log::Warn("Aparrently we left the channel???");
+            break;
+          }
+
+          $this->handlePart($user);
           break;
 
         case 'PRIVMSG':
@@ -128,7 +146,19 @@ class Twitch extends Socket
       substr($id, 20);
   }
 
-  private function handleMsg($msg)
+  private function handleJoin(string $user): void
+  {
+    $person = Core::getPerson('twitch', null, $user);
+    Core::handleJoin('twitch', $person);
+  }
+
+  private function handlePart(string $user): void
+  {
+    $person = Core::getPerson('twitch', null, $user);
+    Core::handlePart('twitch', $person);
+  }
+
+  private function handleMsg($msg): void
   {
     $person = Core::getPerson(
       'twitch',
@@ -146,17 +176,24 @@ class Twitch extends Socket
     );
   }
 
-  public function delMessage($id)
+  public function delMessage(string $id): void
   {
     $id = $this->unpackID($id);
     $this->send("PRIVMSG #" . $this->channel . " :/delete $id");
   }
 
-  public function sendMessage(Record $person, $msg)
+  public function sendPrivMessage(Record $person, $msg): void
   {
     $lines = explode("\n", $msg);
     foreach($lines as $msg)
       $this->send('PRIVMSG #' . $this->channel . ' :@' . $person->twitch_name . ' ' . $msg);
+  }
+
+  public function sendMessage($msg): void
+  {
+    $lines = explode("\n", $msg);
+    foreach($lines as $msg)
+      $this->send('PRIVMSG #' . $this->channel . ' :' . $msg);
   }
 
   public function tick(): void

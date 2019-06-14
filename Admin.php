@@ -7,20 +7,20 @@ Core::addAdminCommand("op", false,
   {
     if (count($args) != 1)
     {
-      $source->sendMessage($from, "Invalid Usage, expected:\n`!!op username`");
+      $source->sendPrivMessage($from, "Invalid Usage, expected:\n`!!op username`");
       return;
     }
 
     $person = Core::lookupPerson($args[0]);
     if (!$person)
     {
-      $source->sendMessage($from, "unknown user");
+      $source->sendPrivMessage($from, "unknown user");
       return;
     }
 
     $person->is_admin = true;
     $person->save();
-    $source->sendMessage($from, "'" . $person->display_name . "' has been given operator status");
+    $source->sendPrivMessage($from, "'" . $person->display_name . "' has been given operator status");
   }
 );
 
@@ -30,20 +30,20 @@ Core::addAdminCommand("deop", false,
   {
     if (count($args) != 1)
     {
-      $source->sendMessage($from, "Invalid Usage, expected:\n`!!deop username`");
+      $source->sendPrivMessage($from, "Invalid Usage, expected:\n`!!deop username`");
       return;
     }
 
     $person = Core::lookupPerson($args[0]);
     if (!$person)
     {
-      $source->sendMessage($from, "unknown user");
+      $source->sendPrivMessage($from, "unknown user");
       return;
     }
 
     $person->is_false = true;
     $person->save();
-    $source->sendMessage($from, "'" . $person->display_name . "' has lost operator access");
+    $source->sendPrivMessage($from, "'" . $person->display_name . "' has lost operator access");
   }
 );
 
@@ -53,14 +53,14 @@ Core::addAdminCommand("rename", false,
   {
     if (count($args) != 2)
     {
-      $source->sendMessage($from, "Invalid usage, expected:\n`!!rename old_name new_name`");
+      $source->sendPrivMessage($from, "Invalid usage, expected:\n`!!rename old_name new_name`");
       return;
     }
 
     $person = Core::lookupPerson($args[0]);
     if (!$person)
     {
-      $source->sendMessage($from, "Invalid user");
+      $source->sendPrivMessage($from, "Invalid user");
       return;
     }
 
@@ -72,11 +72,11 @@ Core::addAdminCommand("rename", false,
     }
     catch(\Exception $err)
     {
-      $source->sendMessage($from, "Failed, is the name unique?");
+      $source->sendPrivMessage($from, "Failed, is the name unique?");
       return;
     }
 
-    $source->sendMessage($from, "'$old_name' is now known as '" . $args[1] . "'");
+    $source->sendPrivMessage($from, "'$old_name' is now known as '" . $args[1] . "'");
   }
 );
 
@@ -86,7 +86,7 @@ Core::addAdminCommand("merge", false,
   {
     if (count($args) != 2)
     {
-      $source->sendMessage($from, "Invalid usage, expected:\n`!!merge twitch_name discord_name`");
+      $source->sendPrivMessage($from, "Invalid usage, expected:\n`!!merge twitch_name discord_name`");
       return;
     }
 
@@ -97,13 +97,13 @@ Core::addAdminCommand("merge", false,
     $twitch = $ds->addFilter('twitch_name', '=', $twitch_name)->fetch();
     if (!$twitch)
     {
-      $source->sendMessage($from, "Unknown Twitch user");
+      $source->sendPrivMessage($from, "Unknown Twitch user");
       return;
     }
 
     if (!is_null($twitch->discord_id))
     {
-      $source->sendMessage($from, "The twitch account specified is is already merged");
+      $source->sendPrivMessage($from, "The twitch account specified is is already merged");
       return;
     }
 
@@ -112,18 +112,18 @@ Core::addAdminCommand("merge", false,
     $discord = $ds->addFilter('discord_name', '=', $discord_name)->fetch();
     if (!$discord)
     {
-      $source->sendMessage($from, "Unknown Discord user");
+      $source->sendPrivMessage($from, "Unknown Discord user");
       return;
     }
 
     if (!is_null($discord->twitch_id))
     {
-      $source->sendMessage($from, "The discord account specified is already merged");
+      $source->sendPrivMessage($from, "The discord account specified is already merged");
       return;
     }
 
     Core::mergePeople($twitch, $discord);
-    $source->sendMessage($from, "Done");
+    $source->sendPrivMessage($from, "Done");
   }
 );
 
@@ -133,14 +133,14 @@ Core::addAdminCommand("newsession", false,
   {
     if (count($args) != 0)
     {
-      $source->sendMessage($from, "Invalid usage, no arguments expected");
+      $source->sendPrivMessage($from, "Invalid usage, no arguments expected");
       return;
     }
 
     $session = DS\TSessions::createRecord();
     $session->ts = microtime(true);
     $session->save();
-    $source->sendMessage($from, "New session has been tagged");
+    $source->sendPrivMessage($from, "New session has been tagged");
   }
 );
 ?>
