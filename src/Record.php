@@ -168,6 +168,16 @@ class Record
     return $this->modified;
   }
 
+  public function IsInvalid() : bool
+  {
+    return $this->invalid;
+  }
+
+  public function IsReadOnly(): bool
+  {
+    return $this->readOnly;
+  }
+
   /**
    * Reload the record from the database
    *
@@ -245,11 +255,6 @@ class Record
 
     $this->invalid = true;
     return true;
-  }
-
-  public function IsInvalid() : bool
-  {
-    return $this->invalid;
   }
 }
 ?>

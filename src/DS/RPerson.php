@@ -61,7 +61,7 @@ class RPerson extends \GnifBot\Record
 
   public function __destruct()
   {
-    if (!$this->IsInvalid())
+    if (!$this->IsInvalid() && !$this->IsReadOnly())
       $this->save();
   }
 
