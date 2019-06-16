@@ -368,7 +368,10 @@ class Core
         $name = $person->$field;
 
       if ($person->isNew())
+      {
+        $person->save();
         $msg = "Welcome @" . $name;
+      }
       else
         $msg = "Welcome back @" . $name;
 
