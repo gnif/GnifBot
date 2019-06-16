@@ -10,8 +10,8 @@ class Core
   static private $sockets  = [];
   static private $dbc;
 
-  static private $discord_wh;
-  static private $twitch_api;
+  static public $discord_wh;
+  static public $twitch_api;
 
   static private $publicCommands = [];
   static private $adminCommands  = [];
@@ -64,7 +64,6 @@ class Core
   {
     /* set the initial user state */
     $chatters = self::$twitch_api->getChatters();
-    $getinfo  = [];
     $online   = [];
     foreach($chatters->chatters as $group)
       foreach($group as $user)
@@ -72,28 +71,13 @@ class Core
         if ($user == self::$config->twitch->username)
           continue;
 
+        Log::Info("Twitch: https://www.twitch.tv/%s", $user);
         $person = self::getPerson('twitch', null, $user);
-        if ($person->isNew())
-        {
-          $person->first_seen = time();
-          $getinfo[$user] = $person;
-        }
-
-        $person->is_online  = true;
-        $person->last_seen  = time();
+        $person->is_online = true;
+        $person->last_seen = time();
         $person->save();
         $online[] = $person->id;
       }
-
-    $info = self::$twitch_api->getUserInfo(array_keys($getinfo));
-    foreach($getinfo as $user => $person)
-    {
-      $detail = $info[$user];
-      $person->twitch_id    = $detail['id'];
-      $person->display_name = $detail['display_name'];
-      $person->is_bot       = $detail['type'] != 'user';
-      $person->save();
-    }
 
     $ds = new DS\TPeople();
     $ds
@@ -323,13 +307,13 @@ class Core
     string $source     , // the source (discord or twitter)
     ?int   $source_id  , // the author id (null if unknown)
     string $source_name  // the author name
-  ): Record
+  ): DS\RPerson
   {
     if ($source != 'discord' && $source != 'twitch')
       throw new Exception('Invalid message source, must be either discord or twitch');
 
     $field_id   = $source . '_id';
-    $field_name = $source . '_name';
+    $field_name = $source . '_login';
 
     // lookup the person by ID if possible, otherwise the author name
     $ds = new DS\TPeople();
@@ -340,40 +324,8 @@ class Core
     $person = $ds->fetch();
     if (!$person)
     {
-      // not found, create a new record with a unique display name
-      if ($source == 'discord')
-      {
-        // split off the discriminator
-        $parts = explode('#', $source_name, 2);
-        $names = [$parts[0], $source_name, 'd:' . $source_name];
-      }
-      else
-      {
-        $names = [$source_name, 't:' . $source_name];
-      }
-
-      $ok = false;
-      foreach($names as $name)
-        if ($ds->reset()->addFilter('display_name', '=', $name)->count() == 0)
-        {
-          $ok = true;
-          break;
-        }
-
-      if (!$ok)
-      {
-        // this really should never happen as discord and twitch both ensure unique names
-        throw new Exception('Failed to get a unique display name for the user');
-      }
-
       $person = DS\TPeople::createRecord();
-      $person->display_name  = $name;
-      $person->message_count = 0;
-      $person->is_admin      = false;
-      $person->is_online     = false;
-      $person->is_bot        = false;
-      $person->$field_name   = $source_name;
-
+      $person->$field_name = $source_name;
       if (!is_null($source_id))
         $person->$field_id = $source_id;
     }
@@ -389,7 +341,7 @@ class Core
     return $person;
   }
 
-  static public function handleJoin(string $source, Record $person)
+  static public function handleJoin(string $source, DS\RPerson $person)
   {
     if ($source != 'discord' && $source != 'twitch')
       throw new Exception('Invalid message source, must be either discord or twitch');
@@ -397,34 +349,15 @@ class Core
     if ($person->is_online)
       return;
 
-    if ($person->isNew())
-    {
-      if ($source == 'twitch')
-      {
-        $info = self::$twitch_api->getUserInfo([$person->twitch_name]);
-        print_r($info);
-        $info = $info[$person->twitch_name];
-        $person->twitch_id    = $info['id'          ];
-        $person->display_name = $info['display_name'];
-        $person->is_bot       = $info['type'] != 'user';
-      }
-      $person->first_seen = time();
-      $person->last_seen  = time();
-    }
+    $person->last_seen = time();
 
     // if the person was already online there is nothing more to do
     if ($person->is_online)
-    {
-      $person->save();
       return;
-    }
 
     $person->is_online = true;
-    if ($person->is_bot)
-    {
-      $person->save();
+    if ($person->IsBot())
       return;
-    }
 
     foreach(self::$sockets as $dest => $socket)
     {
@@ -441,11 +374,9 @@ class Core
 
       $socket->sendMessage($msg);
     }
-
-    $person->save();
   }
 
-  static public function handlePart(string $source, Record $person)
+  static public function handlePart(string $source, DS\RPerson $person)
   {
     if ($source != 'discord' && $source != 'twitch')
       throw new Exception('Invalid message source, must be either discord or twitch');
@@ -453,13 +384,12 @@ class Core
     if (!$person->is_online)
       return;
 
-    Log::Info("Part: %s", $person->display_name);
-
     $person->is_online = false;
     $person->save();
-    var_dump($person->is_bot);
-    if ($person->is_bot)
+    if ($person->IsBot())
       return;
+
+    Log::Info("Part: %s", $person->display_name);
 
     foreach(self::$sockets as $dest => $socket)
     {
@@ -475,12 +405,12 @@ class Core
   }
 
   static public function handleMessage(
-    bool   $dm         , // direct message
-    float  $ts         , // the timestamp
-    string $source     , // the source (discord or twitter)
-    Record $person     , // the person
-    string $id         , // the message id
-    string $msg          // the message
+    bool       $dm         , // direct message
+    float      $ts         , // the timestamp
+    string     $source     , // the source (discord or twitter)
+    DS\RPerson $person     , // the person
+    string     $id         , // the message id
+    string     $msg          // the message
   ): void
   {
     if ($source != 'discord' && $source != 'twitch')
@@ -499,7 +429,7 @@ class Core
     // admin commands
     if (substr($msg, 0, 2) == '!!')
     {
-      if ($person->is_admin)
+      if ($person->IsAdmin())
       {
         $person->save();
         self::handleAdminCommand($source, $person, $msg);
@@ -560,12 +490,12 @@ class Core
     Log::Info("Updated message %d", $message->id);
   }
 
-  static public function lookupPerson($name) : ?Record
+  static public function lookupPerson($name) : ?DS\RPerson
   {
     $name = explode(':', $name, 2);
         if (count($name) == 1) $field = 'display_name';
-    elseif ($name[0] == 't'  ) $field = 'twitch_name';
-    elseif ($name[0] == 'd'  ) $field = 'discord_name';
+    elseif ($name[0] == 't'  ) $field = 'twitch_login';
+    elseif ($name[0] == 'd'  ) $field = 'discord_login';
     else
       return NULL;
 
@@ -636,7 +566,7 @@ class Core
     self::$adminCommands[$command] = [$secure, $help, $handler];
   }
 
-  static private function handleAdminCommand(string $source, Record $person, string $msg): void
+  static private function handleAdminCommand(string $source, DS\RPerson $person, string $msg): void
   {
     Log::Info("Admin Command: %s", $msg);
     $msg    = explode(' ', $msg, 2);
@@ -661,7 +591,7 @@ class Core
     $handler[2]($cmd, $source, $person, $args);
   }
 
-  static private function handleCommand(string $source, Record $person, string $msg): void
+  static private function handleCommand(string $source, DS\RPerson $person, string $msg): void
   {
     Log::Info("Command: %s", $msg);
     $msg    = explode(' ', $msg, 2);
@@ -686,7 +616,7 @@ class Core
     $handler[2]($cmd, $source, $person, $args);
   }
 
-  static public function mergePeople(Record $twitch, Record $discord)
+  static public function mergePeople(DS\RPerson $twitch, DS\RPerson $discord)
   {
     // clear out the token
     $twitch->merge_token = NULL;
@@ -704,9 +634,7 @@ class Core
     $twitch->first_seen     = min($twitch->first_seen, $discord->first_seen);
     $twitch->last_seen      = max($twitch->last_seen , $discord->last_seen );
     $twitch->message_count += $discord->message_count;
-    $twitch->is_admin       = $twitch->is_admin || $discord->is_admin;
-    $twitch->is_mod         = $twitch->is_mod   || $discord->is_mod;
-    $twitch->is_vip         = $twitch->is_vip   || $discord->is_vip;
+    $twitch->flags         |= $discord->flags;
 
     // reassign all of the discord records to the twitch person
     $ds = new DS\TChat();

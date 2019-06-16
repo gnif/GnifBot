@@ -149,6 +149,7 @@ class Twitch extends Socket
   private function handleJoin(string $user): void
   {
     $person = Core::getPerson('twitch', null, $user);
+    Log::Info("Twitch: https://www.twitch.tv/%s", $user);
     Core::handleJoin('twitch', $person);
   }
 
@@ -182,11 +183,11 @@ class Twitch extends Socket
     $this->send("PRIVMSG #" . $this->channel . " :/delete $id");
   }
 
-  public function sendPrivMessage(Record $person, $msg): void
+  public function sendPrivMessage(DS\RPerson $person, $msg): void
   {
     $lines = explode("\n", $msg);
     foreach($lines as $msg)
-      $this->send('PRIVMSG #' . $this->channel . ' :@' . $person->twitch_name . ' ' . $msg);
+      $this->send('PRIVMSG #' . $this->channel . ' :@' . $person->twitch_login . ' ' . $msg);
   }
 
   public function sendMessage($msg): void

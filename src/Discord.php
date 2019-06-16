@@ -199,6 +199,7 @@ class Discord extends WebSocket
             $member->user->id,
             $member->user->username . '#' . $member->user->discriminator
           );
+          $person->discord_name = $member->user->username;
 
           if ($person->isNew())
           {
@@ -297,7 +298,7 @@ class Discord extends WebSocket
     // nothing to do, discord is the trigger for the delete
   }
 
-  public function sendPrivMessage(Record $person, $msg)
+  public function sendPrivMessage(DS\RPerson $person, $msg)
   {
     if (!$person->discord_dm)
     {
@@ -318,7 +319,7 @@ class Discord extends WebSocket
 //    $this->api->
   }
 
-  public function addPersonToRole(Record $person, int $role): void
+  public function addPersonToRole(DS\RPerson $person, int $role): void
   {
     if (is_null($person->discord_id))
     {

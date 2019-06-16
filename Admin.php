@@ -3,7 +3,7 @@ namespace GnifBot;
 
 Core::addAdminCommand("op", false,
   "Make the specified user an operator",
-  function($cmd, $source, Record $from, array $args) : void
+  function($cmd, $source, DS\RPerson $from, array $args) : void
   {
     if (count($args) != 1)
     {
@@ -18,7 +18,7 @@ Core::addAdminCommand("op", false,
       return;
     }
 
-    $person->is_admin = true;
+    $person->SetAdmin(true);
     $person->save();
     $source->sendPrivMessage($from, "'" . $person->display_name . "' has been given operator status");
   }
@@ -26,7 +26,7 @@ Core::addAdminCommand("op", false,
 
 Core::addAdminCommand("deop", false,
   "Remove operator access from the specified user",
-  function($cmd, $source, Record $from, array $args) : void
+  function($cmd, $source, DS\RPerson $from, array $args) : void
   {
     if (count($args) != 1)
     {
@@ -41,7 +41,7 @@ Core::addAdminCommand("deop", false,
       return;
     }
 
-    $person->is_false = true;
+    $person->SetAdmin(false);
     $person->save();
     $source->sendPrivMessage($from, "'" . $person->display_name . "' has lost operator access");
   }
@@ -49,7 +49,7 @@ Core::addAdminCommand("deop", false,
 
 Core::addAdminCommand("rename", false,
   "Set the specified user's display name",
-  function($cmd, $source, Record $from, array $args) : void
+  function($cmd, $source, DS\RPerson $from, array $args) : void
   {
     if (count($args) != 2)
     {
@@ -82,19 +82,19 @@ Core::addAdminCommand("rename", false,
 
 Core::addAdminCommand("merge", false,
   "Merge a twitch and a discord account into a single user",
-  function($cmd, $source, Record $from, array $args) : void
+  function($cmd, $source, DS\RPerson $from, array $args) : void
   {
     if (count($args) != 2)
     {
-      $source->sendPrivMessage($from, "Invalid usage, expected:\n`!!merge twitch_name discord_name`");
+      $source->sendPrivMessage($from, "Invalid usage, expected:\n`!!merge twitch_login discord_login`");
       return;
     }
 
-    $twitch_name  = $args[0];
-    $discord_name = $args[1];
+    $twitch_login  = $args[0];
+    $discord_login = $args[1];
     $ds = new DS\TPeople();
 
-    $twitch = $ds->addFilter('twitch_name', '=', $twitch_name)->fetch();
+    $twitch = $ds->addFilter('twitch_login', '=', $twitch_login)->fetch();
     if (!$twitch)
     {
       $source->sendPrivMessage($from, "Unknown Twitch user");
@@ -109,7 +109,7 @@ Core::addAdminCommand("merge", false,
 
     $ds->reset();
 
-    $discord = $ds->addFilter('discord_name', '=', $discord_name)->fetch();
+    $discord = $ds->addFilter('discord_login', '=', $discord_login)->fetch();
     if (!$discord)
     {
       $source->sendPrivMessage($from, "Unknown Discord user");
@@ -129,7 +129,7 @@ Core::addAdminCommand("merge", false,
 
 Core::addAdminCommand("newsession", false,
   "Tag the start of a new stream",
-  function($cmd, $source, Record $from, array $args) : void
+  function($cmd, $source, DS\RPerson $from, array $args) : void
   {
     if (count($args) != 0)
     {
@@ -146,23 +146,23 @@ Core::addAdminCommand("newsession", false,
 
 Core::addAdminCommand("bot", false,
   "Flag a twitch user as a bot",
-  function($cmd, $source, Record $from, array $args) : void
+  function($cmd, $source, DS\RPerson $from, array $args) : void
   {
     if (count($args) != 1)
     {
-      $source->sendPrivMessage($from, "Invalid usage, expected:\n`!!bot twitch_name`");
+      $source->sendPrivMessage($from, "Invalid usage, expected:\n`!!bot twitch_login`");
       return;
     }
 
     $ds = new DS\TPeople();
-    $twitch = $ds->addFilter('twitch_name', '=', $args[0])->fetch();
+    $twitch = $ds->addFilter('twitch_login', '=', $args[0])->fetch();
     if (!$twitch)
     {
       $source->sendPrivMessage($from, "Unknown Twitch user");
       return;
     }
 
-    $twitch->is_bot = true;
+    $twitch->SetBot(true);
     $twitch->save();
 
     $source->sendPrivMessage($from, "Twitch user has been flagged as a bot");

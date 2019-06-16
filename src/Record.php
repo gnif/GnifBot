@@ -49,16 +49,13 @@ class Record
     if (!$this->dsClass::isValidColumn($column))
       throw new Exception('Invalid column \'' . $column . '\'');
 
-    $this->modified = true;
-
     $setter = "set_$column";
     if (method_exists($this, $setter))
     {
-      $this->row[$column] = call_user_func(
+      $value = call_user_func(
         [$this, $setter],
         $value
       );
-      return;
     }
 
     $type = $this->dsClass::getColumnType($column);
@@ -77,6 +74,9 @@ class Record
         case DataSource::FLAG_TYPE_BIN : $value = (string)$value; break;
       }
 
+    if (!array_key_exists($column, $this->row) || $this->row[$column] !== $value)
+      $this->modified = true;
+
     $this->row[$column] = $value;
   }
 
@@ -88,7 +88,11 @@ class Record
     if (!array_key_exists($column, $this->row) && !$this->dsClass::isValidColumn($column))
       throw new Exception('Invalid column \'' . $column . '\'');
 
-    $value  = array_key_exists($column, $this->row) ? $this->row[$column] : null;
+    $value = array_key_exists($column, $this->row) ? $this->row[$column] : null;
+
+    if ($this->isNew() && is_null($value) && $this->dsClass::getPrimaryKey() == $column)
+      throw new Exception('The record is new and does not yet have a primary key value');
+
     $getter = "get_$column";
     if (method_exists($this, $getter))
     {
@@ -134,7 +138,14 @@ class Record
    */
   public function __isset(string $column)
   {
-    return array_key_exists($column, $this->row);
+    $exists = array_key_exists($column, $this->row);
+    if (!$exists)
+      return false;
+
+    if ($this->newRecord && $this->dsClass::getPrimaryKey() == $column && is_null($this->row[$column]))
+      return false;
+
+    return true;
   }
 
   /**
@@ -188,6 +199,9 @@ class Record
     if ($this->invalid)
       throw new Exception("Record is invalid");
 
+    if (!$this->newRecord && !$this->modified)
+      return true;
+
     if ($this->dsClass::saveRecord($this))
     {
       $this->newRecord = false;
@@ -231,6 +245,11 @@ class Record
 
     $this->invalid = true;
     return true;
+  }
+
+  public function IsInvalid() : bool
+  {
+    return $this->invalid;
   }
 }
 ?>

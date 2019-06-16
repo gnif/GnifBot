@@ -3,7 +3,7 @@ namespace GnifBot;
 
 Core::addPublicCommand("claim", true,
   "Issue a request to claim a twitch account",
-  function($cmd, $source, Record $from, array $args) : void
+  function($cmd, $source, DS\RPerson $from, array $args) : void
   {
     if (count($args) > 0)
     {
@@ -35,7 +35,7 @@ Core::addPublicCommand("claim", true,
 
 Core::addPublicCommand("confirm", false,
   "Claim a twitch account using the claim token",
-  function($cmd, $source, Record $from, array $args) : void
+  function($cmd, $source, DS\RPerson $from, array $args) : void
   {
     if (!($source instanceof Twitch))
     {
@@ -76,7 +76,7 @@ Core::addPublicCommand("confirm", false,
 
 Core::addPublicCommand("stats", false,
   "Show your statistics",
-  function($cmd, $source, Record $from, array $args) : void
+  function($cmd, $source, DS\RPerson $from, array $args) : void
   {
     if (count($args) != 0)
     {

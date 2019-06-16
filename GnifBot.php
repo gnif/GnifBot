@@ -10,7 +10,6 @@ Core::initialize($config);
 require('Admin.php' );
 require('Public.php');
 
-
 Core::start();
 Core::run();
 ?>
