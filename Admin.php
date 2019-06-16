@@ -47,6 +47,52 @@ Core::addAdminCommand("deop", false,
   }
 );
 
+Core::addAdminCommand("mod", false,
+  "Make the specified user a moderator",
+  function($cmd, $source, DS\RPerson $from, array $args) : void
+  {
+    if (count($args) != 1)
+    {
+      $source->sendPrivMessage($from, "Invalid Usage, expected:\n`!!mod username`");
+      return;
+    }
+
+    $person = Core::lookupPerson($args[0]);
+    if (!$person)
+    {
+      $source->sendPrivMessage($from, "unknown user");
+      return;
+    }
+
+    $person->SetMod(true);
+    $person->save();
+    $source->sendPrivMessage($from, "'" . $person->display_name . "' has been given moderator status");
+  }
+);
+
+Core::addAdminCommand("demod", false,
+  "Remove moderator access from the specified user",
+  function($cmd, $source, DS\RPerson $from, array $args) : void
+  {
+    if (count($args) != 1)
+    {
+      $source->sendPrivMessage($from, "Invalid Usage, expected:\n`!!demod username`");
+      return;
+    }
+
+    $person = Core::lookupPerson($args[0]);
+    if (!$person)
+    {
+      $source->sendPrivMessage($from, "unknown user");
+      return;
+    }
+
+    $person->SetMod(false);
+    $person->save();
+    $source->sendPrivMessage($from, "'" . $person->display_name . "' has lost moderator access");
+  }
+);
+
 Core::addAdminCommand("rename", false,
   "Set the specified user's display name",
   function($cmd, $source, DS\RPerson $from, array $args) : void
