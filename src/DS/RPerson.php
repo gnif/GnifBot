@@ -20,7 +20,7 @@ class RPerson extends \GnifBot\Record
       list($info) = array_values(\GnifBot\Core::$twitch_api->getUserInfo([$this->twitch_login]));
       $this->twitch_id    = $info['id'          ];
       $this->twitch_name  = $info['display_name'];
-      $this->is_bot       = $info['type'] != 'user';
+      $this->SetBot($info['type'] != 'user');
     }
 
     /* ensure a display name is set */
